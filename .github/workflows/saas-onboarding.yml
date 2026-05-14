@@ -274,11 +274,15 @@ jobs:
   ansible-configure:
     name: Ansible configure
     needs: terraform-provision
-    # Explicit if: required because the workflow has skipped sibling jobs
-    # (the two unused per-env gates). GHA's default implicit `if: success()`
-    # evaluates "all previous jobs succeeded" -- skipped siblings make it
-    # false -- so we check the direct dependency explicitly.
-    if: needs.terraform-provision.result == 'success'
+    # IMPORTANT: GHA auto-skips any job whose `needs:` chain contains a
+    # transitively-skipped ancestor (the two unused per-env gates in this
+    # workflow), and this auto-skip happens BEFORE the if: clause is even
+    # evaluated -- unless the if: uses a status-check function
+    # (always(), !cancelled(), success(), failure()). A plain boolean like
+    # `needs.X.result == 'success'` is NOT enough on its own. The
+    # `!cancelled() &&` prefix forces the if: to evaluate, then we check
+    # the direct dependency.
+    if: ${{ !cancelled() && needs.terraform-provision.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Inject failure (demo only — first attempt only)
@@ -295,7 +299,7 @@ jobs:
   splunk-integrate:
     name: Splunk forwarder
     needs: ansible-configure
-    if: needs.ansible-configure.result == 'success'
+    if: ${{ !cancelled() && needs.ansible-configure.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Inject failure (demo only — first attempt only)
@@ -309,7 +313,7 @@ jobs:
   dynatrace-integrate:
     name: Dynatrace OneAgent
     needs: ansible-configure
-    if: needs.ansible-configure.result == 'success'
+    if: ${{ !cancelled() && needs.ansible-configure.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - run: echo "OneAgent installed and registered"
@@ -318,7 +322,7 @@ jobs:
   cmdb-register:
     name: CMDB / ITSM registration
     needs: ansible-configure
-    if: needs.ansible-configure.result == 'success'
+    if: ${{ !cancelled() && needs.ansible-configure.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - run: echo "POST /cmdb/ci -- registered new CI"
@@ -331,6 +335,7 @@ jobs:
     name: Smoke tests
     needs: [splunk-integrate, dynatrace-integrate, cmdb-register]
     if: |
+      !cancelled() &&
       needs.splunk-integrate.result == 'success' &&
       needs.dynatrace-integrate.result == 'success' &&
       needs.cmdb-register.result == 'success'
@@ -348,6 +353,7 @@ jobs:
     name: Mark change record as deployed
     needs: [smoke-tests, staging-create-cr, production-verify-cr]
     if: |
+      !cancelled() &&
       needs.smoke-tests.result == 'success' && (
         needs.staging-create-cr.result == 'success' ||
         needs.production-verify-cr.result == 'success'
