@@ -274,6 +274,11 @@ jobs:
   ansible-configure:
     name: Ansible configure
     needs: terraform-provision
+    # Explicit if: required because the workflow has skipped sibling jobs
+    # (the two unused per-env gates). GHA's default implicit `if: success()`
+    # evaluates "all previous jobs succeeded" -- skipped siblings make it
+    # false -- so we check the direct dependency explicitly.
+    if: needs.terraform-provision.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Inject failure (demo only — first attempt only)
@@ -290,6 +295,7 @@ jobs:
   splunk-integrate:
     name: Splunk forwarder
     needs: ansible-configure
+    if: needs.ansible-configure.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Inject failure (demo only — first attempt only)
@@ -303,6 +309,7 @@ jobs:
   dynatrace-integrate:
     name: Dynatrace OneAgent
     needs: ansible-configure
+    if: needs.ansible-configure.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - run: echo "OneAgent installed and registered"
@@ -311,6 +318,7 @@ jobs:
   cmdb-register:
     name: CMDB / ITSM registration
     needs: ansible-configure
+    if: needs.ansible-configure.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - run: echo "POST /cmdb/ci -- registered new CI"
@@ -322,6 +330,10 @@ jobs:
   smoke-tests:
     name: Smoke tests
     needs: [splunk-integrate, dynatrace-integrate, cmdb-register]
+    if: |
+      needs.splunk-integrate.result == 'success' &&
+      needs.dynatrace-integrate.result == 'success' &&
+      needs.cmdb-register.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "health check: app responds on /healthz"'
