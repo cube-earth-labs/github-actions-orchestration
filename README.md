@@ -24,7 +24,7 @@ The README and the pipelines below are organized around these three questions:
 1. **Can parts be re-triggered if they fail?**
    - **Native UI:** "Re-run failed jobs" and "Re-run all jobs" buttons on every run page
    - **State preservation:** outputs and artifacts from successful upstream jobs are kept, so re-running starts from the failure point — not from scratch
-   - **Demo:** run `saas-onboarding.yml` with `inject_failure: splunk-integrate`. Splunk fails, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** — only splunk re-runs, the parallel siblings are preserved.
+   - **Demo:** run `saas-onboarding.yml` with `inject_failure: splunk-integrate`. Splunk fails on attempt 1, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** — attempt 2 skips the injection guard (`github.run_attempt == 1` is now false), splunk succeeds, and downstream proceeds. Terraform, ansible, dynatrace, and cmdb are NOT re-run — their original outcome is preserved.
 
 2. **Can you see the order in which things happened visually?**
    - **Job DAG view:** the Actions tab renders every workflow as a graph — boxes for jobs, arrows for `needs:` dependencies, color-coded by status
@@ -42,7 +42,7 @@ The README and the pipelines below are organized around these three questions:
 
 - **Workflow:** validate → CRQ approval → Terraform provision → Ansible configure → Splunk + Dynatrace + CMDB (parallel) → smoke tests → notify
 - **Demonstrates:** all three customer questions in one realistic run — serial chain, parallel branches, fan-in, and a CRQ-style approval gate
-- **Failure injection:** the `inject_failure` workflow_dispatch input forces a chosen stage (`terraform-provision`, `ansible-configure`, or `splunk-integrate`) to exit non-zero. Use this to demo "Re-run failed jobs" with state preservation — failed stage re-runs in isolation, parallel siblings stay green from the original run.
+- **Failure injection:** the `inject_failure` workflow_dispatch input forces a chosen stage (`terraform-provision`, `ansible-configure`, or `splunk-integrate`) to exit non-zero **on the first attempt only**. The injection step is gated on `github.run_attempt == 1`, so clicking **Re-run failed jobs** skips the guard and lets the workflow complete. Demonstrates Re-run-failed-jobs *with state preservation* — failed stage re-runs in isolation, parallel siblings stay green from the original run.
 
 ### 2. `manual-approval-gates.yml` — CRQ-Style Approval
 

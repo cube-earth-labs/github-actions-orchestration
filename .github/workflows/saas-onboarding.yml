@@ -14,10 +14,18 @@
 #   3. Chain serial + parallel?    Yes -- `needs:` chains, no-needs = parallel.
 #
 # Failure injection (for the Re-run demo):
-#   The `inject_failure` input forces a chosen stage to exit non-zero. The
-#   best demo is inject_failure=splunk-integrate -- splunk fails, dynatrace
-#   and cmdb stay green, smoke-tests is skipped. Then click "Re-run failed
-#   jobs": only splunk re-runs, upstream state is preserved.
+#   The `inject_failure` input forces a chosen stage to exit non-zero ON
+#   THE FIRST ATTEMPT ONLY (`github.run_attempt == 1`). On any re-run,
+#   `run_attempt` is >= 2, the injection step is skipped, and the workflow
+#   proceeds to success.
+#
+#   Best demo:
+#     1. Run with inject_failure=splunk-integrate
+#        → splunk fails, dynatrace + cmdb stay green, smoke-tests is skipped
+#     2. Click "Re-run failed jobs"
+#        → attempt 2: injection skipped, splunk succeeds, downstream runs
+#        → upstream successful jobs (terraform, ansible, dynatrace, cmdb)
+#          are NOT re-run -- their original outcome is preserved
 # =============================================================================
 
 name: SaaS Onboarding (Demo)
@@ -92,10 +100,10 @@ jobs:
     needs: crq-approval
     runs-on: ubuntu-latest
     steps:
-      - name: Inject failure (demo only)
-        if: inputs.inject_failure == 'terraform-provision'
+      - name: Inject failure (demo only — first attempt only)
+        if: inputs.inject_failure == 'terraform-provision' && github.run_attempt == 1
         run: |
-          echo "INJECTED FAILURE for Re-run demo"
+          echo "INJECTED FAILURE on attempt 1. Click 'Re-run failed jobs' — attempt 2 will skip this step and succeed."
           exit 1
       - run: echo "terraform init"
       - run: echo "terraform plan -out=tfplan"
@@ -112,10 +120,10 @@ jobs:
     needs: terraform-provision
     runs-on: ubuntu-latest
     steps:
-      - name: Inject failure (demo only)
-        if: inputs.inject_failure == 'ansible-configure'
+      - name: Inject failure (demo only — first attempt only)
+        if: inputs.inject_failure == 'ansible-configure' && github.run_attempt == 1
         run: |
-          echo "INJECTED FAILURE for Re-run demo"
+          echo "INJECTED FAILURE on attempt 1. Click 'Re-run failed jobs' — attempt 2 will skip this step and succeed."
           exit 1
       - run: echo "ansible-playbook -i inventory site.yml"
       - run: 'echo "configured: baseline + hardening + agents installed"'
@@ -129,10 +137,10 @@ jobs:
     needs: ansible-configure
     runs-on: ubuntu-latest
     steps:
-      - name: Inject failure (demo only)
-        if: inputs.inject_failure == 'splunk-integrate'
+      - name: Inject failure (demo only — first attempt only)
+        if: inputs.inject_failure == 'splunk-integrate' && github.run_attempt == 1
         run: |
-          echo "INJECTED FAILURE for Re-run demo"
+          echo "INJECTED FAILURE on attempt 1. Click 'Re-run failed jobs' — attempt 2 will skip this step and succeed."
           exit 1
       - run: echo "configured Splunk Universal Forwarder -> indexer cluster"
       - run: echo "verified events arriving in index=app_${{ inputs.app_name }}"
