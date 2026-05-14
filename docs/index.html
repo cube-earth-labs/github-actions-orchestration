@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Change Management — Demo</title>
   <style>
     :root {
@@ -93,8 +96,40 @@
     .toolbar .counts {
       font-size: 13px;
       color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
     .toolbar .counts strong { color: var(--text); }
+    .sync-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .sync-indicator .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      font-size: 13px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      line-height: 1;
+    }
+    .sync-indicator .icon-btn:hover:not(:disabled) {
+      color: var(--text);
+      border-color: var(--border-strong);
+      background: var(--bg-elev-2);
+    }
+    .sync-indicator .icon-btn.spinning {
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
     h2 {
       font-size: 12px;
       font-weight: 600;
@@ -415,6 +450,10 @@
   <div class="toolbar">
     <div class="counts">
       <strong id="count-total">0</strong> change requests
+      <span class="sync-indicator">
+        <button class="icon-btn" id="refresh-btn" title="Refresh now">↻</button>
+        <span id="last-sync"></span>
+      </span>
     </div>
     <button class="primary-large" id="open-create">+ New Change Request</button>
   </div>
@@ -755,10 +794,29 @@
   $('#open-settings').addEventListener('click', openSettingsModal);
 
   // ----- refresh loop -----
+  const POLL_INTERVAL_MS = 5000;
+  let lastRefreshAt = null;
+  let pollTimer = null;
+  let inFlight = false;
+
+  function updateLastSyncLabel() {
+    if (!lastRefreshAt) {
+      $('#last-sync').textContent = '';
+      return;
+    }
+    const sec = Math.round((Date.now() - lastRefreshAt) / 1000);
+    $('#last-sync').textContent = sec < 2 ? 'just now' : `synced ${sec}s ago`;
+  }
+
   async function refresh() {
+    if (inFlight) return;
+    inFlight = true;
+    $('#refresh-btn').classList.add('spinning');
     try {
       allIssues = await listCRs();
       render();
+      lastRefreshAt = Date.now();
+      updateLastSyncLabel();
     } catch (e) {
       if (e.status === 401 || e.status === 403) {
         toast('Auth error — set or refresh your PAT', 'error');
@@ -766,11 +824,41 @@
       } else {
         toast(`Load failed: ${e.message}`, 'error');
       }
+    } finally {
+      inFlight = false;
+      $('#refresh-btn').classList.remove('spinning');
     }
   }
 
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(refresh, POLL_INTERVAL_MS);
+  }
+  function stopPolling() {
+    if (!pollTimer) return;
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  // Manual refresh button
+  $('#refresh-btn').addEventListener('click', refresh);
+
+  // Pause polling when tab is hidden; resume + refresh immediately when visible
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopPolling();
+    } else {
+      refresh();
+      startPolling();
+    }
+  });
+
+  // Tick the "synced Xs ago" label every second
+  setInterval(updateLastSyncLabel, 1000);
+
+  // Boot
   refresh();
-  setInterval(refresh, 30000);
+  startPolling();
 </script>
 
 </body>
