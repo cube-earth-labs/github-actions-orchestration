@@ -24,11 +24,11 @@ The README and the pipelines below are organized around these three questions:
 1. **Can parts be re-triggered if they fail?**
    - **Native UI:** "Re-run failed jobs" and "Re-run all jobs" buttons on every run page
    - **State preservation:** outputs and artifacts from successful upstream jobs are kept, so re-running starts from the failure point — not from scratch
-   - **Demo:** run `saas-onboarding.yml` with `inject_failure: splunk-integrate`. Splunk fails on attempt 1, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** — attempt 2 skips the injection guard (`github.run_attempt == 1` is now false), splunk succeeds, and downstream proceeds. Terraform, ansible, dynatrace, and cmdb are NOT re-run — their original outcome is preserved.
+   - **Demo:** run `execute-deployment.yml` with `inject_failure: splunk-integrate`. Splunk fails on attempt 1, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** — attempt 2 skips the injection guard (`github.run_attempt == 1` is now false), splunk succeeds, and downstream proceeds. Terraform, ansible, dynatrace, and cmdb are NOT re-run — their original outcome is preserved.
 
 2. **Can you see the order in which things happened visually?**
    - **Job DAG view:** the Actions tab renders every workflow as a graph — boxes for jobs, arrows for `needs:` dependencies, color-coded by status
-   - **Demo:** `saas-onboarding.yml` exercises this with steps that fan out and converge
+   - **Demo:** `execute-deployment.yml` exercises this with steps that fan out and converge
 
 3. **Can you chain processes serially and in parallel?**
    - **Serial:** `needs: [upstream-job]` declares a dependency
@@ -36,9 +36,9 @@ The README and the pipelines below are organized around these three questions:
    - **Fan-out:** matrix strategy (`strategy.matrix:`) spawns parallel job instances
    - **Fan-in:** a downstream job with `needs: [a, b, c]` blocks until all complete
 
-## What Each Pipeline Demonstrates
+## What the Pipeline Demonstrates
 
-### 1. `saas-onboarding.yml` — Flagship End-to-End Demo
+### `execute-deployment.yml`
 
 - **Workflow:** validate → change-management gate (per-environment) → Terraform provision → Ansible configure → Splunk + Dynatrace + CMDB (parallel) → smoke tests → mark CR deployed → notify
 - **Per-environment gate behavior:**
@@ -47,12 +47,6 @@ The README and the pipelines below are organized around these three questions:
   - **production** → The workflow **requires an existing approved CR** (provided via `change_request_id` input). It verifies the issue has labels `change-request` + `status:approved` + `env:production` and fails fast otherwise. Approval is performed in the webapp.
 - **Mark-deployed:** after smoke-tests succeed, the CR is re-labeled `status:deployed` and the run links to the issue via a comment.
 - **Failure injection:** the `inject_failure` input forces a chosen stage (`terraform-provision`, `ansible-configure`, or `splunk-integrate`) to exit non-zero **on attempt 1 only**. Click **Re-run failed jobs** → attempt 2 skips the injection guard → workflow succeeds. Demonstrates state preservation across retries.
-
-### 2. `manual-approval-gates.yml` — CRQ-Style Approval
-
-- **Pattern:** GitHub Actions environments with required reviewers pause the workflow until an approver clicks "Approve"
-- **Multi-stage support:** the demo uses *two* environments (`staging-approval`, `production-approval`) so different approver groups can gate different stages — dev team approves staging, CAB approves prod
-- **Use case:** change-management gates, ServiceNow CRQ-equivalent approvals
 
 ## Change Management Webapp
 
@@ -72,14 +66,12 @@ A mock change-management system, served from `docs/index.html` via GitHub Pages.
 github-actions-orchestration/
 ├── README.md                     # This file
 ├── docs/
-│   └── index.html                # Change-management webapp (GitHub Pages)
+│   └── index.html                # Change-management webapp (served by deploy-pages.yml)
 └── .github/
     └── workflows/
-        ├── saas-onboarding.yml
-        └── manual-approval-gates.yml
+        ├── execute-deployment.yml    # Flagship orchestration demo
+        └── deploy-pages.yml          # Publishes docs/ to GitHub Pages
 ```
-
-The `.github/workflows/` layout matches what GitHub expects, so the demo can be dropped into any repo and runs immediately.
 
 ## Run Tasks vs Actions vs AAP Kickoff — Decision Matrix
 
@@ -91,7 +83,7 @@ The `.github/workflows/` layout matches what GitHub expects, so the demo can be 
 | **Config management on already-provisioned hosts (drift, patching)** | **AAP** (its native job) |
 | **Long-running, stateful workflow that survives restarts** | **GHA with `workflow_dispatch` + reusable workflows** |
 
-## Sample Workflow — SaaS Onboarding
+## Sample Workflow — Execute Deployment
 
 ```mermaid
 graph TD
@@ -115,22 +107,20 @@ The serial path is `validate → CRQ → provision → configure`. The integrati
 
 ### One-time setup
 
-1. In **Settings → Environments**, create three environments with required reviewers:
-   - `change-approval` — sandbox gate in `saas-onboarding.yml`
-   - `staging-approval` — staging gate in `manual-approval-gates.yml`
-   - `production-approval` — production gate in `manual-approval-gates.yml`
+1. In **Settings → Environments**, create the `change-approval` environment with a required reviewer — used as the sandbox gate in `execute-deployment.yml`.
 2. Open the webapp at https://cube-earth-labs.github.io/github-actions-orchestration/ and paste your GitHub PAT in **Settings**. Labels (`change-request`, `status:*`, `env:*`) are already created in the repo.
 
 ### Sandbox deploy (no change request)
 
-1. Actions → **SaaS Onboarding (Demo)** → **Run workflow** → environment: `sandbox`
-2. The `sandbox-approval` job pauses with a "Waiting" status. Click **Review deployments** → Approve.
-3. Pipeline proceeds to terraform → ansible → integrations → smoke → notify.
+1. Actions → **Execute Deployment** → **Run workflow** → environment: `sandbox`
+2. Fill in: `change_title` and `change_description` (required for every environment).
+3. The `sandbox-approval` job pauses with a "Waiting" status. Click **Review deployments** → Approve.
+4. Pipeline proceeds to terraform → ansible → integrations → smoke → notify.
 
 ### Staging deploy (auto-creates a change request)
 
-1. Actions → **SaaS Onboarding (Demo)** → **Run workflow** → environment: `staging`
-2. Fill in: `change_title` and `change_description` (these populate the new CR; required for every environment).
+1. Actions → **Execute Deployment** → **Run workflow** → environment: `staging`
+2. Fill in: `change_title` and `change_description` (these populate the new CR).
 3. Pipeline immediately creates a CR (status:approved), then deploys. After smoke-tests, the CR is marked `status:deployed`.
 4. Open the webapp to see the CR appear in **Approved** → then move to **Deployed** after the run completes.
 
@@ -139,10 +129,10 @@ The serial path is `validate → CRQ → provision → configure`. The integrati
 1. **In the webapp:** create a CR with environment = `production`. It enters **Pending Approval**.
 2. **In the webapp:** click **Approve** on that CR. It moves to **Approved**.
 3. **Note the issue number** (e.g., `#42`).
-4. Actions → **SaaS Onboarding (Demo)** → **Run workflow** → environment: `production`, `change_request_id: 42`.
+4. Actions → **Execute Deployment** → **Run workflow** → environment: `production`, `change_request_id: 42`, plus `change_title` and `change_description`.
 5. The `production-verify-cr` job fetches the issue and validates its labels. If approved + production, the pipeline proceeds. If not, it fails fast with a clear message.
 6. After smoke-tests, the CR is marked `status:deployed`.
 
 ### Demo the Re-run failed jobs pattern
 
-Run `SaaS Onboarding (Demo)` with `inject_failure: splunk-integrate`. Splunk turns red on attempt 1, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** in the top-right of the run page → attempt 2 skips the injection guard → splunk succeeds → downstream proceeds. Only the failed job and its skipped downstream re-execute; the parallel siblings (dynatrace, cmdb) keep their original-run outcome.
+Run `Execute Deployment` with `inject_failure: splunk-integrate`. Splunk turns red on attempt 1, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** in the top-right of the run page → attempt 2 skips the injection guard → splunk succeeds → downstream proceeds. Only the failed job and its skipped downstream re-execute; the parallel siblings (dynatrace, cmdb) keep their original-run outcome.

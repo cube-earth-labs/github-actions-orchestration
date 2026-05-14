@@ -1,5 +1,5 @@
 # =============================================================================
-# saas-onboarding.yml
+# execute-deployment.yml
 # -----------------------------------------------------------------------------
 # Flagship demo. Mirrors Acme Corporation's actual SaaS-onboarding flow:
 #
@@ -39,7 +39,7 @@
 # graph view in the Actions UI is the artifact.
 # =============================================================================
 
-name: SaaS Onboarding (Demo)
+name: Execute Deployment
 
 on:
   workflow_dispatch:
