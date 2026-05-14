@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Change Management — Demo</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg-elev: #161b22;
+      --bg-elev-2: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-dim: #7d8590;
+      --accent: #2f81f7;
+      --accent-hover: #1f6feb;
+      --green: #3fb950;
+      --green-bg: #0f2e1f;
+      --yellow: #d29922;
+      --yellow-bg: #2d2102;
+      --red: #f85149;
+      --red-bg: #2d0c0f;
+      --purple: #a371f7;
+      --purple-bg: #1d1330;
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      background: var(--bg-elev);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    header h1 .badge {
+      font-size: 11px;
+      color: var(--text-dim);
+      background: var(--bg-elev-2);
+      padding: 2px 6px;
+      border-radius: 12px;
+      margin-left: 8px;
+      font-weight: 400;
+    }
+    header .links {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    header .links a { color: var(--accent); text-decoration: none; margin-left: 16px; }
+    header .links a:hover { text-decoration: underline; }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h2 {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin: 32px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    h2:first-child { margin-top: 0; }
+    .panel {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .form-row { margin-bottom: 12px; }
+    .form-row label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .form-row input[type=text],
+    .form-row input[type=url],
+    .form-row input[type=password],
+    .form-row textarea,
+    .form-row select {
+      width: 100%;
+      padding: 6px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .form-row textarea { min-height: 80px; resize: vertical; font-family: inherit; }
+    .form-row input:focus,
+    .form-row textarea:focus,
+    .form-row select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.3);
+    }
+    .form-row.inline { display: flex; gap: 8px; align-items: flex-end; }
+    .form-row.inline > * { flex: 1; }
+    .radio-group { display: flex; gap: 12px; }
+    .radio-group label {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      text-align: center;
+      transition: border-color 0.1s, background 0.1s;
+    }
+    .radio-group label:has(input:checked) {
+      border-color: var(--accent);
+      background: rgba(47, 129, 247, 0.1);
+    }
+    .radio-group input { display: none; }
+    button {
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      color: white;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary {
+      background: var(--bg-elev-2);
+      border-color: var(--border);
+      color: var(--text);
+    }
+    button.secondary:hover { background: var(--border); }
+    button.danger {
+      background: transparent;
+      color: var(--red);
+      border-color: var(--border);
+    }
+    button.danger:hover { background: var(--red-bg); border-color: var(--red); }
+    button.success {
+      background: var(--green);
+      border-color: var(--green);
+    }
+    button.success:hover { background: #2ea043; border-color: #2ea043; }
+    .cr-card {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px 16px;
+      align-items: start;
+    }
+    .cr-card .header-row {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .cr-card .num {
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .cr-card .title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .cr-card .body {
+      grid-column: 1;
+      font-size: 13px;
+      color: var(--text-dim);
+      white-space: pre-wrap;
+    }
+    .cr-card .body strong { color: var(--text); }
+    .cr-card .body a { color: var(--accent); }
+    .cr-card .actions {
+      grid-column: 2;
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+    }
+    .cr-card .footer {
+      grid-column: 1 / -1;
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+      display: flex;
+      gap: 16px;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      letter-spacing: 0.02em;
+      text-transform: lowercase;
+    }
+    .badge.env-staging { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple); }
+    .badge.env-production { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow); }
+    .badge.status-proposed { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow); }
+    .badge.status-approved { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+    .badge.status-rejected { background: var(--red-bg); color: var(--red); border: 1px solid var(--red); }
+    .badge.status-deployed { background: var(--bg-elev-2); color: var(--text-dim); border: 1px solid var(--border); }
+    .empty {
+      color: var(--text-dim);
+      font-size: 13px;
+      font-style: italic;
+      padding: 12px 0;
+    }
+    details > summary {
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-dim);
+      padding: 4px 0;
+      user-select: none;
+    }
+    details > summary:hover { color: var(--text); }
+    details[open] > summary { margin-bottom: 12px; }
+    .hint {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-size: 13px;
+      max-width: 400px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      animation: slideIn 0.2s ease-out;
+    }
+    .toast.error { border-color: var(--red); color: var(--red); }
+    .toast.success { border-color: var(--green); color: var(--green); }
+    @keyframes slideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    code, .mono { font-family: var(--mono); font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Change Management <span class="badge">Demo</span></h1>
+  <div class="links">
+    <a href="https://github.com/cube-earth-labs/github-actions-orchestration" target="_blank">Repo</a>
+    <a href="https://github.com/cube-earth-labs/github-actions-orchestration/actions" target="_blank">Actions</a>
+    <a href="https://github.com/cube-earth-labs/github-actions-orchestration/issues?q=label%3Achange-request" target="_blank">All CRs</a>
+  </div>
+</header>
+
+<main>
+
+  <details id="settings-panel">
+    <summary>⚙️ Settings — GitHub Personal Access Token (required to create or approve)</summary>
+    <div class="panel">
+      <div class="form-row">
+        <label for="pat">Personal Access Token</label>
+        <input type="password" id="pat" placeholder="ghp_..." autocomplete="off">
+        <div class="hint">
+          Needs <code>issues:write</code> on <code>cube-earth-labs/github-actions-orchestration</code>.
+          Stored in <code>localStorage</code> only — never transmitted anywhere except <code>api.github.com</code>.
+          <a href="https://github.com/settings/tokens/new?scopes=repo&description=cube-earth-labs%20CMS%20demo" target="_blank">Create one →</a>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button id="save-pat">Save</button>
+        <button id="clear-pat" class="danger">Clear</button>
+      </div>
+    </div>
+  </details>
+
+  <h2>Create Change Request</h2>
+  <form id="create-form" class="panel">
+    <div class="form-row">
+      <label>Environment</label>
+      <div class="radio-group">
+        <label>
+          <input type="radio" name="env" value="staging" checked>
+          🟪 staging
+        </label>
+        <label>
+          <input type="radio" name="env" value="production">
+          🟧 production
+        </label>
+      </div>
+      <div class="hint">
+        Sandbox deploys don't create CRs — they use the GitHub Actions approval gate directly.
+      </div>
+    </div>
+    <div class="form-row">
+      <label for="title">Title</label>
+      <input type="text" id="title" required placeholder="Deploy auth-service v1.2.3">
+    </div>
+    <div class="form-row">
+      <label for="pr-link">PR Link</label>
+      <input type="url" id="pr-link" required placeholder="https://github.com/.../pull/123">
+    </div>
+    <div class="form-row">
+      <label for="description">Description</label>
+      <textarea id="description" required placeholder="What is changing, why, rollback plan, etc."></textarea>
+    </div>
+    <button type="submit" id="submit-btn">Submit Change Request</button>
+  </form>
+
+  <h2>Pending Approval <span id="count-proposed" class="badge status-proposed">0</span></h2>
+  <div id="list-proposed"></div>
+
+  <h2>Approved — Ready to Deploy <span id="count-approved" class="badge status-approved">0</span></h2>
+  <div id="list-approved"></div>
+
+  <h2>Deployed <span id="count-deployed" class="badge status-deployed">0</span></h2>
+  <div id="list-deployed"></div>
+
+</main>
+
+<div id="toast-container"></div>
+
+<script>
+  const REPO = 'cube-earth-labs/github-actions-orchestration';
+  const API = 'https://api.github.com';
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+
+  // ----- PAT (localStorage) -----
+  const getPAT = () => localStorage.getItem('cms_pat') || '';
+  const setPAT = (t) => localStorage.setItem('cms_pat', t);
+  const clearPAT = () => localStorage.removeItem('cms_pat');
+
+  $('#pat').value = getPAT();
+  if (getPAT()) $('#settings-panel').open = false; else $('#settings-panel').open = true;
+
+  $('#save-pat').addEventListener('click', () => {
+    setPAT($('#pat').value.trim());
+    toast('PAT saved to localStorage', 'success');
+    refresh();
+  });
+  $('#clear-pat').addEventListener('click', () => {
+    clearPAT();
+    $('#pat').value = '';
+    toast('PAT cleared', 'success');
+    refresh();
+  });
+
+  // ----- toast -----
+  function toast(msg, kind = '') {
+    const el = document.createElement('div');
+    el.className = 'toast ' + kind;
+    el.textContent = msg;
+    $('#toast-container').appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  // ----- GitHub API -----
+  async function ghFetch(path, opts = {}) {
+    const headers = {
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opts.headers || {})
+    };
+    const pat = getPAT();
+    if (pat) headers['Authorization'] = `Bearer ${pat}`;
+    if (opts.body) headers['Content-Type'] = 'application/json';
+
+    const res = await fetch(`${API}${path}`, { ...opts, headers });
+    if (!res.ok) {
+      const text = await res.text();
+      const err = new Error(`${res.status} ${res.statusText}: ${text}`);
+      err.status = res.status;
+      throw err;
+    }
+    if (res.status === 204) return null;
+    return res.json();
+  }
+
+  async function listCRs() {
+    return ghFetch(`/repos/${REPO}/issues?labels=change-request&state=all&per_page=100`);
+  }
+
+  async function createCR({ title, prLink, description, env }) {
+    const body = `**Environment:** ${env}\n**PR:** ${prLink}\n\n**Description:**\n${description}`;
+    return ghFetch(`/repos/${REPO}/issues`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: `CR: ${title}`,
+        body,
+        labels: ['change-request', 'status:proposed', `env:${env}`]
+      })
+    });
+  }
+
+  async function setStatus(num, newStatus, currentLabels) {
+    const labels = currentLabels
+      .map(l => typeof l === 'string' ? l : l.name)
+      .filter(n => !n.startsWith('status:'))
+      .concat(`status:${newStatus}`);
+    return ghFetch(`/repos/${REPO}/issues/${num}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ labels })
+    });
+  }
+
+  // ----- render -----
+  function statusOf(issue) {
+    const lbl = issue.labels.find(l => l.name.startsWith('status:'));
+    return lbl ? lbl.name.replace('status:', '') : 'unknown';
+  }
+  function envOf(issue) {
+    const lbl = issue.labels.find(l => l.name.startsWith('env:'));
+    return lbl ? lbl.name.replace('env:', '') : 'unknown';
+  }
+  function fmtTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString();
+  }
+  function escapeHTML(s) {
+    return s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function renderBody(rawBody) {
+    return escapeHTML(rawBody || '')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/(https?:\/\/[^\s)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  }
+
+  function renderCard(issue) {
+    const status = statusOf(issue);
+    const env = envOf(issue);
+    const actions = [];
+    if (status === 'proposed') {
+      actions.push(`<button class="success" data-act="approve" data-num="${issue.number}">Approve</button>`);
+      actions.push(`<button class="danger" data-act="reject" data-num="${issue.number}">Reject</button>`);
+    } else if (status === 'rejected') {
+      actions.push(`<button class="success" data-act="approve" data-num="${issue.number}">Approve</button>`);
+    } else if (status === 'approved') {
+      actions.push(`<button class="secondary" data-act="revert" data-num="${issue.number}">Revert to proposed</button>`);
+    }
+    return `
+      <div class="cr-card">
+        <div class="header-row">
+          <span class="num">#${issue.number}</span>
+          <span class="title">${escapeHTML(issue.title.replace(/^CR:\s*/, ''))}</span>
+          <span class="badge env-${env}">${env}</span>
+          <span class="badge status-${status}">${status}</span>
+        </div>
+        <div class="body">${renderBody(issue.body || '(no description)')}</div>
+        <div class="actions">${actions.join('')}</div>
+        <div class="footer">
+          <span>opened ${fmtTime(issue.created_at)} by <a href="${issue.user.html_url}" target="_blank">${issue.user.login}</a></span>
+          <a href="${issue.html_url}" target="_blank">view on GitHub →</a>
+        </div>
+      </div>
+    `;
+  }
+
+  function render(issues) {
+    const proposed = issues.filter(i => statusOf(i) === 'proposed' || statusOf(i) === 'rejected');
+    const approved = issues.filter(i => statusOf(i) === 'approved');
+    const deployed = issues.filter(i => statusOf(i) === 'deployed');
+
+    $('#count-proposed').textContent = proposed.length;
+    $('#count-approved').textContent = approved.length;
+    $('#count-deployed').textContent = deployed.length;
+
+    $('#list-proposed').innerHTML = proposed.length
+      ? proposed.map(renderCard).join('')
+      : `<div class="empty">No pending change requests.</div>`;
+    $('#list-approved').innerHTML = approved.length
+      ? approved.map(renderCard).join('')
+      : `<div class="empty">No approved change requests waiting to deploy.</div>`;
+    $('#list-deployed').innerHTML = deployed.length
+      ? deployed.slice(0, 10).map(renderCard).join('')
+      : `<div class="empty">No deployed change requests yet.</div>`;
+
+    // wire up action buttons
+    $$('button[data-act]').forEach(btn => {
+      btn.addEventListener('click', () => onAction(btn.dataset.act, parseInt(btn.dataset.num, 10), issues));
+    });
+  }
+
+  async function onAction(act, num, issues) {
+    const issue = issues.find(i => i.number === num);
+    if (!issue) return;
+    if (!getPAT()) {
+      toast('Set a Personal Access Token first (top of page)', 'error');
+      $('#settings-panel').open = true;
+      return;
+    }
+    try {
+      const newStatus = act === 'approve' ? 'approved' : act === 'reject' ? 'rejected' : 'proposed';
+      await setStatus(num, newStatus, issue.labels);
+      toast(`#${num} → ${newStatus}`, 'success');
+      refresh();
+    } catch (e) {
+      toast(`Failed: ${e.message}`, 'error');
+    }
+  }
+
+  // ----- create form -----
+  $('#create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!getPAT()) {
+      toast('Set a Personal Access Token first (top of page)', 'error');
+      $('#settings-panel').open = true;
+      return;
+    }
+    const btn = $('#submit-btn');
+    btn.disabled = true;
+    const env = document.querySelector('input[name=env]:checked').value;
+    const title = $('#title').value.trim();
+    const prLink = $('#pr-link').value.trim();
+    const description = $('#description').value.trim();
+    try {
+      const issue = await createCR({ title, prLink, description, env });
+      toast(`Created CR #${issue.number}`, 'success');
+      $('#create-form').reset();
+      refresh();
+    } catch (e) {
+      toast(`Failed: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ----- refresh loop -----
+  async function refresh() {
+    try {
+      const issues = await listCRs();
+      render(issues);
+    } catch (e) {
+      if (e.status === 401 || e.status === 403) {
+        toast('Auth error — set or refresh your PAT', 'error');
+        $('#settings-panel').open = true;
+      } else {
+        toast(`Load failed: ${e.message}`, 'error');
+      }
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 30000);
+</script>
+
+</body>
+</html>

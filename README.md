@@ -40,9 +40,13 @@ The README and the pipelines below are organized around these three questions:
 
 ### 1. `saas-onboarding.yml` — Flagship End-to-End Demo
 
-- **Workflow:** validate → CRQ approval → Terraform provision → Ansible configure → Splunk + Dynatrace + CMDB (parallel) → smoke tests → notify
-- **Demonstrates:** all three customer questions in one realistic run — serial chain, parallel branches, fan-in, and a CRQ-style approval gate
-- **Failure injection:** the `inject_failure` workflow_dispatch input forces a chosen stage (`terraform-provision`, `ansible-configure`, or `splunk-integrate`) to exit non-zero **on the first attempt only**. The injection step is gated on `github.run_attempt == 1`, so clicking **Re-run failed jobs** skips the guard and lets the workflow complete. Demonstrates Re-run-failed-jobs *with state preservation* — failed stage re-runs in isolation, parallel siblings stay green from the original run.
+- **Workflow:** validate → change-management gate (per-environment) → Terraform provision → Ansible configure → Splunk + Dynatrace + CMDB (parallel) → smoke tests → mark CR deployed → notify
+- **Per-environment gate behavior:**
+  - **sandbox** → GitHub Actions environment-gate with 1 human reviewer in the Actions UI. No change request is created.
+  - **staging** → The workflow **auto-creates a change request issue** (labeled `change-request` + `status:approved` + `env:staging`). The webapp shows it; the deploy proceeds immediately. The CR is for audit/record.
+  - **production** → The workflow **requires an existing approved CR** (provided via `change_request_id` input). It verifies the issue has labels `change-request` + `status:approved` + `env:production` and fails fast otherwise. Approval is performed in the webapp.
+- **Mark-deployed:** after smoke-tests succeed, the CR is re-labeled `status:deployed` and the run links to the issue via a comment.
+- **Failure injection:** the `inject_failure` input forces a chosen stage (`terraform-provision`, `ansible-configure`, or `splunk-integrate`) to exit non-zero **on attempt 1 only**. Click **Re-run failed jobs** → attempt 2 skips the injection guard → workflow succeeds. Demonstrates state preservation across retries.
 
 ### 2. `manual-approval-gates.yml` — CRQ-Style Approval
 
@@ -50,11 +54,25 @@ The README and the pipelines below are organized around these three questions:
 - **Multi-stage support:** the demo uses *two* environments (`staging-approval`, `production-approval`) so different approver groups can gate different stages — dev team approves staging, CAB approves prod
 - **Use case:** change-management gates, ServiceNow CRQ-equivalent approvals
 
+## Change Management Webapp
+
+Live at: **https://cube-earth-labs.github.io/github-actions-orchestration/**
+
+A mock change-management system, served from `docs/index.html` via GitHub Pages. Backed by GitHub Issues (each CR is an issue labeled `change-request` + `status:*` + `env:*`). Lets you:
+
+- Create a change request (title, PR link, description, environment)
+- Approve / reject pending CRs
+- See history of deployed CRs
+
+**Auth:** the webapp uses a GitHub Personal Access Token (PAT) with `repo` scope, stored in `localStorage`. Reads work anonymously; create/approve actions need a PAT. [Create one →](https://github.com/settings/tokens/new?scopes=repo&description=cube-earth-labs%20CMS%20demo)
+
 ## Folder Layout
 
 ```
 github-actions-orchestration/
 ├── README.md                     # This file
+├── docs/
+│   └── index.html                # Change-management webapp (GitHub Pages)
 └── .github/
     └── workflows/
         ├── saas-onboarding.yml
@@ -95,10 +113,36 @@ The serial path is `validate → CRQ → provision → configure`. The integrati
 
 ## How to Run This Demo
 
-1. Fork or clone this repo.
-2. In **Settings → Environments**, create three environments and add required reviewers to each:
-   - `change-approval` — used by `saas-onboarding.yml` as the CRQ gate
-   - `staging-approval` — used by `manual-approval-gates.yml`
-   - `production-approval` — used by `manual-approval-gates.yml`
-3. Open the **Actions** tab. Pick a workflow on the left, click **Run workflow**, and watch the graph render.
-4. To demo the failed-job re-run pattern: run `SaaS Onboarding (Demo)` with `inject_failure: splunk-integrate`. Splunk turns red, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** in the top-right of the run page — only splunk re-runs; the parallel siblings are preserved from the original run.
+### One-time setup
+
+1. In **Settings → Environments**, create three environments with required reviewers:
+   - `change-approval` — sandbox gate in `saas-onboarding.yml`
+   - `staging-approval` — staging gate in `manual-approval-gates.yml`
+   - `production-approval` — production gate in `manual-approval-gates.yml`
+2. Open the webapp at https://cube-earth-labs.github.io/github-actions-orchestration/ and paste your GitHub PAT in **Settings**. Labels (`change-request`, `status:*`, `env:*`) are already created in the repo.
+
+### Sandbox deploy (no change request)
+
+1. Actions → **SaaS Onboarding (Demo)** → **Run workflow** → environment: `sandbox`
+2. The `sandbox-approval` job pauses with a "Waiting" status. Click **Review deployments** → Approve.
+3. Pipeline proceeds to terraform → ansible → integrations → smoke → notify.
+
+### Staging deploy (auto-creates a change request)
+
+1. Actions → **SaaS Onboarding (Demo)** → **Run workflow** → environment: `staging`
+2. Fill in: `change_title`, `pr_link`, `change_description` (these populate the new CR).
+3. Pipeline immediately creates a CR (status:approved), then deploys. After smoke-tests, the CR is marked `status:deployed`.
+4. Open the webapp to see the CR appear in **Approved** → then move to **Deployed** after the run completes.
+
+### Production deploy (requires an approved CR from the webapp)
+
+1. **In the webapp:** create a CR with environment = `production`. It enters **Pending Approval**.
+2. **In the webapp:** click **Approve** on that CR. It moves to **Approved**.
+3. **Note the issue number** (e.g., `#42`).
+4. Actions → **SaaS Onboarding (Demo)** → **Run workflow** → environment: `production`, `change_request_id: 42`.
+5. The `production-verify-cr` job fetches the issue and validates its labels. If approved + production, the pipeline proceeds. If not, it fails fast with a clear message.
+6. After smoke-tests, the CR is marked `status:deployed`.
+
+### Demo the Re-run failed jobs pattern
+
+Run `SaaS Onboarding (Demo)` with `inject_failure: splunk-integrate`. Splunk turns red on attempt 1, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** in the top-right of the run page → attempt 2 skips the injection guard → splunk succeeds → downstream proceeds. Only the failed job and its skipped downstream re-execute; the parallel siblings (dynatrace, cmdb) keep their original-run outcome.

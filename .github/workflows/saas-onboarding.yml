@@ -3,15 +3,23 @@
 # -----------------------------------------------------------------------------
 # Flagship demo. Mirrors Acme Corporation's actual SaaS-onboarding flow:
 #
-#   validate -> CRQ approval -> terraform provision -> ansible configure
-#            -> (splunk || dynatrace || cmdb) -> smoke tests -> notify
+#   validate -> change-management gate -> terraform provision -> ansible configure
+#            -> (splunk || dynatrace || cmdb) -> smoke tests -> mark deployed
+#            -> notify
 #
-# Every step is a simple `echo` so the run executes in seconds. The graph view
-# in the Actions UI is the artifact -- it answers all three of the customer's
-# questions visually:
-#   1. Re-trigger failed jobs?     Yes -- "Re-run failed jobs" in the UI.
-#   2. See order visually?         Yes -- the job DAG is rendered.
-#   3. Chain serial + parallel?    Yes -- `needs:` chains, no-needs = parallel.
+# The change-management gate behaves differently per environment:
+#   sandbox     One human reviewer in the GitHub Actions UI (environment gate).
+#               NO change request record is created.
+#   staging     A change request issue is auto-created in the repo (with the
+#               webapp at docs/index.html as the friendly UI on top). Allowed
+#               any time; the CR is for audit/record only.
+#   production  An EXISTING approved change request is required. The workflow
+#               fetches the issue, verifies it has labels `change-request`,
+#               `status:approved`, and `env:production`, and fails fast
+#               otherwise. Approval is performed in the webapp.
+#
+# After smoke-tests succeed, the CR (if any) is re-labeled `status:deployed`
+# and a comment is added linking back to the workflow run.
 #
 # Failure injection (for the Re-run demo):
 #   The `inject_failure` input forces a chosen stage to exit non-zero ON
@@ -21,11 +29,14 @@
 #
 #   Best demo:
 #     1. Run with inject_failure=splunk-integrate
-#        → splunk fails, dynatrace + cmdb stay green, smoke-tests is skipped
+#        -> splunk fails, dynatrace + cmdb stay green, smoke-tests is skipped
 #     2. Click "Re-run failed jobs"
-#        → attempt 2: injection skipped, splunk succeeds, downstream runs
-#        → upstream successful jobs (terraform, ansible, dynatrace, cmdb)
-#          are NOT re-run -- their original outcome is preserved
+#        -> attempt 2: injection skipped, splunk succeeds, downstream runs
+#        -> upstream successful jobs (terraform, ansible, dynatrace, cmdb)
+#           are NOT re-run -- their original outcome is preserved
+#
+# Every "real" step is a simple `echo` so the run executes in seconds. The
+# graph view in the Actions UI is the artifact.
 # =============================================================================
 
 name: SaaS Onboarding (Demo)
@@ -33,10 +44,6 @@ name: SaaS Onboarding (Demo)
 on:
   workflow_dispatch:
     inputs:
-      app_name:
-        description: "Name of the application being onboarded"
-        required: true
-        default: "demo-app"
       environment:
         description: "Target environment"
         required: true
@@ -46,8 +53,28 @@ on:
           - sandbox
           - staging
           - production
+      app_name:
+        description: "Application being onboarded"
+        required: true
+        default: "demo-app"
+      change_title:
+        description: "[staging only] Change title for the new CR"
+        required: false
+        default: ""
+      pr_link:
+        description: "[staging only] Link to PR for the new CR"
+        required: false
+        default: ""
+      change_description:
+        description: "[staging only] Description for the new CR"
+        required: false
+        default: ""
+      change_request_id:
+        description: "[production only] Existing approved CR issue number"
+        required: false
+        default: ""
       inject_failure:
-        description: "Force a stage to fail (for the Re-run failed jobs demo)"
+        description: "Force a stage to fail on attempt 1 (for the Re-run demo)"
         required: false
         default: "none"
         type: choice
@@ -56,6 +83,10 @@ on:
           - terraform-provision
           - ansible-configure
           - splunk-integrate
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
 
@@ -76,28 +107,155 @@ jobs:
         run: 'echo "OK: requesting team has quota in ${{ inputs.environment }}"'
 
   # ---------------------------------------------------------------------------
-  # STAGE 2 -- CRQ approval gate.
-  #
-  # Uses a GitHub "environment" with required reviewers. The workflow pauses
-  # here until an approver clicks Approve in the Actions UI. This is the
-  # ServiceNow-CRQ-equivalent in GitHub Actions.
+  # STAGE 2a -- SANDBOX: GitHub Actions environment gate (1 human reviewer).
+  # No change request is created. Existing behavior.
   # ---------------------------------------------------------------------------
-  crq-approval:
-    name: CRQ approval
+  sandbox-approval:
+    name: Sandbox approval (human reviewer)
+    if: inputs.environment == 'sandbox'
     needs: validate-request
     runs-on: ubuntu-latest
-    environment: change-approval   # <-- configure required reviewers here
+    environment: change-approval
     steps:
-      - run: echo "CRQ approved. Proceeding with onboarding."
+      - run: echo "Sandbox change approved by reviewer. Proceeding."
 
   # ---------------------------------------------------------------------------
-  # STAGE 3 -- Terraform provisioning. Runs after CRQ.
-  # In a real workflow this would call `terraform plan` and `terraform apply`
-  # against TFC/TFE or trigger a run via the TFE API.
+  # STAGE 2b -- STAGING: auto-create a change request issue (status:approved,
+  # since staging is allowed any time -- the CR is for audit/record).
+  # ---------------------------------------------------------------------------
+  staging-create-cr:
+    name: Staging — create change record
+    if: inputs.environment == 'staging'
+    needs: validate-request
+    runs-on: ubuntu-latest
+    outputs:
+      cr_id: ${{ steps.create.outputs.cr_id }}
+      cr_url: ${{ steps.create.outputs.cr_url }}
+    steps:
+      - name: Validate staging inputs
+        run: |
+          missing=""
+          [ -z "${{ inputs.change_title }}" ] && missing="$missing change_title"
+          [ -z "${{ inputs.pr_link }}" ] && missing="$missing pr_link"
+          [ -z "${{ inputs.change_description }}" ] && missing="$missing change_description"
+          if [ -n "$missing" ]; then
+            echo "ERROR: staging requires:$missing"
+            exit 1
+          fi
+          echo "OK: all staging inputs provided."
+
+      - id: create
+        name: Create change request issue
+        uses: actions/github-script@v7
+        env:
+          CHANGE_TITLE: ${{ inputs.change_title }}
+          APP_NAME: ${{ inputs.app_name }}
+          PR_LINK: ${{ inputs.pr_link }}
+          DESCRIPTION: ${{ inputs.change_description }}
+        with:
+          script: |
+            const body = [
+              `**Environment:** staging`,
+              `**App:** ${process.env.APP_NAME}`,
+              `**PR:** ${process.env.PR_LINK}`,
+              ``,
+              `**Description:**`,
+              process.env.DESCRIPTION,
+              ``,
+              `---`,
+              `_Auto-created by [run #${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`,
+            ].join('\n');
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `CR: ${process.env.CHANGE_TITLE}`,
+              body,
+              labels: ['change-request', 'status:approved', 'env:staging'],
+            });
+            core.setOutput('cr_id', issue.number);
+            core.setOutput('cr_url', issue.html_url);
+            await core.summary
+              .addHeading('Change request created', 3)
+              .addLink(`#${issue.number}: ${issue.title}`, issue.html_url)
+              .write();
+
+  # ---------------------------------------------------------------------------
+  # STAGE 2c -- PRODUCTION: verify an existing change request is approved.
+  # ---------------------------------------------------------------------------
+  production-verify-cr:
+    name: Production — verify change record
+    if: inputs.environment == 'production'
+    needs: validate-request
+    runs-on: ubuntu-latest
+    outputs:
+      cr_id: ${{ steps.verify.outputs.cr_id }}
+      cr_url: ${{ steps.verify.outputs.cr_url }}
+    steps:
+      - name: Validate production inputs
+        run: |
+          if [ -z "${{ inputs.change_request_id }}" ]; then
+            echo "ERROR: production requires change_request_id"
+            exit 1
+          fi
+          echo "OK: change_request_id=${{ inputs.change_request_id }}"
+
+      - id: verify
+        name: Fetch and verify change request
+        uses: actions/github-script@v7
+        env:
+          CHANGE_REQUEST_ID: ${{ inputs.change_request_id }}
+        with:
+          script: |
+            const num = parseInt(process.env.CHANGE_REQUEST_ID, 10);
+            if (Number.isNaN(num)) {
+              core.setFailed(`change_request_id is not a number`);
+              return;
+            }
+            let issue;
+            try {
+              const res = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: num,
+              });
+              issue = res.data;
+            } catch (e) {
+              core.setFailed(`CR #${num} not found: ${e.message}`);
+              return;
+            }
+            const labels = issue.labels.map(l => l.name);
+            const checks = [
+              ['change-request', 'not a change request issue'],
+              ['status:approved', 'not approved (use the webapp to approve first)'],
+              ['env:production', 'not for production'],
+            ];
+            const failures = checks.filter(([l, _]) => !labels.includes(l));
+            if (failures.length) {
+              core.setFailed(
+                `CR #${num} failed gate: ${failures.map(([, m]) => m).join('; ')}. ` +
+                `Current labels: ${labels.join(', ') || '(none)'}.`
+              );
+              return;
+            }
+            core.setOutput('cr_id', num);
+            core.setOutput('cr_url', issue.html_url);
+            await core.summary
+              .addHeading('Production change request verified', 3)
+              .addLink(`#${num}: ${issue.title}`, issue.html_url)
+              .write();
+
+  # ---------------------------------------------------------------------------
+  # STAGE 3 -- Terraform provisioning. Runs after WHICHEVER gate fired.
   # ---------------------------------------------------------------------------
   terraform-provision:
     name: Terraform provision
-    needs: crq-approval
+    needs: [sandbox-approval, staging-create-cr, production-verify-cr]
+    if: |
+      !failure() && !cancelled() && (
+        needs.sandbox-approval.result == 'success' ||
+        needs.staging-create-cr.result == 'success' ||
+        needs.production-verify-cr.result == 'success'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Inject failure (demo only — first attempt only)
@@ -111,9 +269,7 @@ jobs:
       - run: 'echo "outputs: instance_id=i-abc123 vpc_id=vpc-def456"'
 
   # ---------------------------------------------------------------------------
-  # STAGE 4 -- Ansible host configuration. Runs after provisioning.
-  # In a real workflow this would invoke AAP via API or run ansible-playbook
-  # against the new hosts.
+  # STAGE 4 -- Ansible host configuration.
   # ---------------------------------------------------------------------------
   ansible-configure:
     name: Ansible configure
@@ -130,7 +286,6 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # STAGE 5 -- Observability + ITSM integrations. ALL THREE RUN IN PARALLEL.
-  # Each depends on ansible-configure but NOT on each other.
   # ---------------------------------------------------------------------------
   splunk-integrate:
     name: Splunk forwarder
@@ -174,11 +329,60 @@ jobs:
       - run: 'echo "trace check:  Dynatrace shows service registered"'
 
   # ---------------------------------------------------------------------------
-  # STAGE 7 -- Notify + close CRQ. Always runs last.
+  # STAGE 7 -- Mark the change request as deployed (staging + production only).
+  # Skipped for sandbox (no CR to update).
+  # ---------------------------------------------------------------------------
+  mark-deployed:
+    name: Mark change record as deployed
+    needs: [smoke-tests, staging-create-cr, production-verify-cr]
+    if: |
+      needs.smoke-tests.result == 'success' && (
+        needs.staging-create-cr.result == 'success' ||
+        needs.production-verify-cr.result == 'success'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          CR_ID: ${{ needs.staging-create-cr.outputs.cr_id || needs.production-verify-cr.outputs.cr_id }}
+        with:
+          script: |
+            const num = parseInt(process.env.CR_ID, 10);
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: num,
+            });
+            const newLabels = issue.labels
+              .map(l => l.name)
+              .filter(n => !n.startsWith('status:'))
+              .concat('status:deployed');
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: num,
+              labels: newLabels,
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: num,
+              body: `:rocket: Deployed via [run #${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
+            });
+            await core.summary
+              .addHeading('Change request marked deployed', 3)
+              .addLink(`#${num}`, issue.html_url)
+              .write();
+
+  # ---------------------------------------------------------------------------
+  # STAGE 8 -- Notify. Runs after smoke-tests succeeded, regardless of whether
+  # mark-deployed ran (sandbox skips it).
   # ---------------------------------------------------------------------------
   notify:
-    name: Notify + close CRQ
-    needs: smoke-tests
+    name: Notify
+    needs: [smoke-tests, mark-deployed]
+    if: |
+      !cancelled() && needs.smoke-tests.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "slack: #onboarding -- ${{ inputs.app_name }} live in ${{ inputs.environment }}"'
