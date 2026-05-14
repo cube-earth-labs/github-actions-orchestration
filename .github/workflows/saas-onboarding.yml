@@ -12,6 +12,12 @@
 #   1. Re-trigger failed jobs?     Yes -- "Re-run failed jobs" in the UI.
 #   2. See order visually?         Yes -- the job DAG is rendered.
 #   3. Chain serial + parallel?    Yes -- `needs:` chains, no-needs = parallel.
+#
+# Failure injection (for the Re-run demo):
+#   The `inject_failure` input forces a chosen stage to exit non-zero. The
+#   best demo is inject_failure=splunk-integrate -- splunk fails, dynatrace
+#   and cmdb stay green, smoke-tests is skipped. Then click "Re-run failed
+#   jobs": only splunk re-runs, upstream state is preserved.
 # =============================================================================
 
 name: SaaS Onboarding (Demo)
@@ -32,6 +38,16 @@ on:
           - sandbox
           - staging
           - production
+      inject_failure:
+        description: "Force a stage to fail (for the Re-run failed jobs demo)"
+        required: false
+        default: "none"
+        type: choice
+        options:
+          - none
+          - terraform-provision
+          - ansible-configure
+          - splunk-integrate
 
 jobs:
 
@@ -76,6 +92,11 @@ jobs:
     needs: crq-approval
     runs-on: ubuntu-latest
     steps:
+      - name: Inject failure (demo only)
+        if: inputs.inject_failure == 'terraform-provision'
+        run: |
+          echo "INJECTED FAILURE for Re-run demo"
+          exit 1
       - run: echo "terraform init"
       - run: echo "terraform plan -out=tfplan"
       - run: echo "terraform apply tfplan"
@@ -91,6 +112,11 @@ jobs:
     needs: terraform-provision
     runs-on: ubuntu-latest
     steps:
+      - name: Inject failure (demo only)
+        if: inputs.inject_failure == 'ansible-configure'
+        run: |
+          echo "INJECTED FAILURE for Re-run demo"
+          exit 1
       - run: echo "ansible-playbook -i inventory site.yml"
       - run: 'echo "configured: baseline + hardening + agents installed"'
 
@@ -103,6 +129,11 @@ jobs:
     needs: ansible-configure
     runs-on: ubuntu-latest
     steps:
+      - name: Inject failure (demo only)
+        if: inputs.inject_failure == 'splunk-integrate'
+        run: |
+          echo "INJECTED FAILURE for Re-run demo"
+          exit 1
       - run: echo "configured Splunk Universal Forwarder -> indexer cluster"
       - run: echo "verified events arriving in index=app_${{ inputs.app_name }}"
 

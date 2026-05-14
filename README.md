@@ -24,7 +24,7 @@ The README and the pipelines below are organized around these three questions:
 1. **Can parts be re-triggered if they fail?**
    - **Native UI:** "Re-run failed jobs" and "Re-run all jobs" buttons on every run page
    - **State preservation:** outputs and artifacts from successful upstream jobs are kept, so re-running starts from the failure point — not from scratch
-   - **Demo:** `orchestration-primitives.yml`
+   - **Demo:** run `saas-onboarding.yml` with `inject_failure: splunk-integrate`. Splunk fails, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** — only splunk re-runs, the parallel siblings are preserved.
 
 2. **Can you see the order in which things happened visually?**
    - **Job DAG view:** the Actions tab renders every workflow as a graph — boxes for jobs, arrows for `needs:` dependencies, color-coded by status
@@ -40,21 +40,15 @@ The README and the pipelines below are organized around these three questions:
 
 ### 1. `saas-onboarding.yml` — Flagship End-to-End Demo
 
-Mirrors Acme's actual workflow: **CRQ approval → Terraform provision → Ansible configure → observability integration (Splunk + Dynatrace, in parallel) → notify**. Demonstrates all three of the customer's questions in a single realistic run. The graph view of this workflow is the strongest visual proof.
+- **Workflow:** validate → CRQ approval → Terraform provision → Ansible configure → Splunk + Dynatrace + CMDB (parallel) → smoke tests → notify
+- **Demonstrates:** all three customer questions in one realistic run — serial chain, parallel branches, fan-in, and a CRQ-style approval gate
+- **Failure injection:** the `inject_failure` workflow_dispatch input forces a chosen stage (`terraform-provision`, `ansible-configure`, or `splunk-integrate`) to exit non-zero. Use this to demo "Re-run failed jobs" with state preservation — failed stage re-runs in isolation, parallel siblings stay green from the original run.
 
-### 2. `orchestration-primitives.yml` — Pattern Reference
+### 2. `manual-approval-gates.yml` — CRQ-Style Approval
 
-Bite-sized demonstration of each orchestration primitive in isolation:
-- Sequential jobs (`needs:`)
-- Parallel jobs (no `needs:` between them)
-- Fan-out via matrix (`strategy.matrix`)
-- Fan-in (downstream `needs: [a, b, c]`)
-- Per-step retry (`continue-on-error` + manual re-run, or third-party retry action)
-- Conditional execution (`if:`)
-
-### 3. `manual-approval-gates.yml` — CRQ-Style Approval
-
-Models the CRQ approval step. Uses GitHub Actions **environments** with required reviewers to pause a workflow until an approver clicks "Approve". This is the natural fit for change-management gates and ServiceNow CRQ-equivalent approvals.
+- **Pattern:** GitHub Actions environments with required reviewers pause the workflow until an approver clicks "Approve"
+- **Multi-stage support:** the demo uses *two* environments (`staging-approval`, `production-approval`) so different approver groups can gate different stages — dev team approves staging, CAB approves prod
+- **Use case:** change-management gates, ServiceNow CRQ-equivalent approvals
 
 ## Folder Layout
 
@@ -64,7 +58,6 @@ github-actions-orchestration/
 └── .github/
     └── workflows/
         ├── saas-onboarding.yml
-        ├── orchestration-primitives.yml
         └── manual-approval-gates.yml
 ```
 
@@ -108,4 +101,4 @@ The serial path is `validate → CRQ → provision → configure`. The integrati
    - `staging-approval` — used by `manual-approval-gates.yml`
    - `production-approval` — used by `manual-approval-gates.yml`
 3. Open the **Actions** tab. Pick a workflow on the left, click **Run workflow**, and watch the graph render.
-4. To demo the failed-job re-run pattern: run `Orchestration Primitives` with `force_fail_retry_demo` set to `true`, let it fail, then click **Re-run failed jobs**.
+4. To demo the failed-job re-run pattern: run `SaaS Onboarding (Demo)` with `inject_failure: splunk-integrate`. Splunk turns red, dynatrace and cmdb stay green, smoke-tests is skipped. Click **Re-run failed jobs** in the top-right of the run page — only splunk re-runs; the parallel siblings are preserved from the original run.
