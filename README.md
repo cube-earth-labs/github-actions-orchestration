@@ -22,10 +22,13 @@ Acme Corporation's automation team does not have an orchestration tool today. Cu
 The README and the pipelines below are organized around these three questions:
 
 1. **Can parts be re-triggered if they fail?**
-   GitHub Actions natively supports "Re-run failed jobs" and "Re-run all jobs" from the run page. Failed jobs preserve outputs/artifacts from successful upstream jobs, so re-running picks up where it left off. See `orchestration-primitives.yml` for the failure/retry pattern.
+   - **Native UI:** "Re-run failed jobs" and "Re-run all jobs" buttons on every run page
+   - **State preservation:** outputs and artifacts from successful upstream jobs are kept, so re-running starts from the failure point — not from scratch
+   - **Demo:** `orchestration-primitives.yml`
 
 2. **Can you see the order in which things happened visually?**
-   The Actions UI renders the job DAG visually — boxes for jobs, arrows for `needs:` dependencies, color-coded status. `saas-onboarding.yml` exercises this with parallel and serial steps that fan out and converge.
+   - **Job DAG view:** the Actions tab renders every workflow as a graph — boxes for jobs, arrows for `needs:` dependencies, color-coded by status
+   - **Demo:** `saas-onboarding.yml` exercises this with steps that fan out and converge
 
 3. **Can you chain processes serially and in parallel?**
    - **Serial:** `needs: [upstream-job]` declares a dependency
