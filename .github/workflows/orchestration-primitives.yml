@@ -86,9 +86,9 @@ jobs:
     needs: [parallel-x, parallel-y, fanout-matrix]
     runs-on: ubuntu-latest
     steps:
-      - run: echo "X status:      ${{ needs.parallel-x.result }}"
-      - run: echo "Y status:      ${{ needs.parallel-y.result }}"
-      - run: echo "Matrix status: ${{ needs.fanout-matrix.result }}"
+      - run: 'echo "X status:      ${{ needs.parallel-x.result }}"'
+      - run: 'echo "Y status:      ${{ needs.parallel-y.result }}"'
+      - run: 'echo "Matrix status: ${{ needs.fanout-matrix.result }}"'
       - run: echo "All parallel branches complete -- aggregating."
 
   # ---------------------------------------------------------------------------
