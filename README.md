@@ -10,12 +10,12 @@ Acme Corporation's automation team does not have an orchestration tool today. Cu
 | --- | --- |
 | **Terraform Actions** | Under evaluation — wants demo of TF Actions vs Ansible provider |
 | **Terraform Stacks** | Customer hinted they want a demo (not built yet) |
-| **Ansible Automation Platform (AAP)** | New Temporal-based workflow orchestrator coming next quarter |
+| **Ansible Automation Platform (AAP)** | Existing platform; native workflow templates strong for Ansible-heavy orchestration |
 | **Jenkins** | **Dismissed** — customer-specific reliability issues (down weekly, ops burden, not team-owned) |
 | **GitHub Actions** | Future possibility once GitHub Enterprise Cloud is connected |
 
-> [!note] My recommendation
-> GitHub Actions is likely the best fit. TFE alone won't orchestrate the entire workflow (CRQ → provision → config → observability → notify). This demo exists to show the customer what that end-to-end orchestration looks like in GHA.
+> [!NOTE]
+> **Recommendation:** GitHub Actions is likely the best fit. TFE alone won't orchestrate the entire workflow (CRQ → provision → config → observability → notify). This demo exists to show the customer what that end-to-end orchestration looks like in GHA.
 
 ## The Customer's Three Requirements
 
@@ -69,15 +69,13 @@ The `.github/workflows/` layout matches what GitHub expects, so the demo can be 
 
 ## Run Tasks vs Actions vs AAP Kickoff — Decision Matrix
 
-The customer's automation lead asked for a decision matrix. Initial cut (refine after walking through the demo):
-
 | Need | Use |
 | --- | --- |
 | **Inline policy / compliance check during a Terraform run** | **TFE Run Tasks** (Sentinel, OPA, Checkov, etc.) |
 | **Outside-of-Terraform action triggered by a run state (e.g., on policy pass, on apply complete)** | **Terraform Actions** (when GA) or webhook → orchestrator |
-| **End-to-end workflow that spans Terraform + Ansible + ITSM + observability** | **GitHub Actions** (this demo) or **AAP Temporal workflow** (when GA next quarter) |
+| **End-to-end workflow that spans Terraform + Ansible + ITSM + observability** | **GitHub Actions** (this demo) |
 | **Config management on already-provisioned hosts (drift, patching)** | **AAP** (its native job) |
-| **Long-running, stateful workflow that survives restarts** | **AAP Temporal** (designed for this) or **GHA with workflow_dispatch + reusable workflows** |
+| **Long-running, stateful workflow that survives restarts** | **GHA with `workflow_dispatch` + reusable workflows** |
 
 ## Sample Workflow — SaaS Onboarding
 
