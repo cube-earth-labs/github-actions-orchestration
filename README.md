@@ -35,11 +35,11 @@ The README and the pipelines below are organized around these three questions:
 
 ## What Each Pipeline Demonstrates
 
-### [[#1. saas-onboarding.yml]] — Flagship End-to-End Demo
+### 1. `saas-onboarding.yml` — Flagship End-to-End Demo
 
 Mirrors Acme's actual workflow: **CRQ approval → Terraform provision → Ansible configure → observability integration (Splunk + Dynatrace, in parallel) → notify**. Demonstrates all three of the customer's questions in a single realistic run. The graph view of this workflow is the strongest visual proof.
 
-### [[#2. orchestration-primitives.yml]] — Pattern Reference
+### 2. `orchestration-primitives.yml` — Pattern Reference
 
 Bite-sized demonstration of each orchestration primitive in isolation:
 - Sequential jobs (`needs:`)
@@ -49,7 +49,7 @@ Bite-sized demonstration of each orchestration primitive in isolation:
 - Per-step retry (`continue-on-error` + manual re-run, or third-party retry action)
 - Conditional execution (`if:`)
 
-### [[#3. manual-approval-gates.yml]] — CRQ-Style Approval
+### 3. `manual-approval-gates.yml` — CRQ-Style Approval
 
 Models the CRQ approval step. Uses GitHub Actions **environments** with required reviewers to pause a workflow until an approver clicks "Approve". This is the natural fit for change-management gates and ServiceNow CRQ-equivalent approvals.
 
