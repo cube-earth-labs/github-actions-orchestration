@@ -492,8 +492,8 @@
   const listCRs = () =>
     ghFetch(`/repos/${REPO}/issues?labels=change-request&state=all&per_page=100`);
 
-  const createCR = ({ title, prLink, description, env }) => {
-    const body = `**Environment:** ${env}\n**PR:** ${prLink}\n\n**Description:**\n${description}`;
+  const createCR = ({ title, description, env }) => {
+    const body = `**Environment:** ${env}\n\n**Description:**\n${description}`;
     return ghFetch(`/repos/${REPO}/issues`, {
       method: 'POST',
       body: JSON.stringify({
@@ -678,10 +678,6 @@
           <input type="text" id="cr-title" required placeholder="Deploy auth-service v1.2.3">
         </div>
         <div class="form-row">
-          <label for="cr-pr">PR Link</label>
-          <input type="url" id="cr-pr" required placeholder="https://github.com/.../pull/123">
-        </div>
-        <div class="form-row">
           <label for="cr-desc">Description</label>
           <textarea id="cr-desc" required placeholder="What is changing, why, rollback plan, etc."></textarea>
         </div>
@@ -704,15 +700,14 @@
     }
     const env = document.querySelector('input[name=env]:checked').value;
     const title = $('#cr-title').value.trim();
-    const prLink = $('#cr-pr').value.trim();
     const description = $('#cr-desc').value.trim();
-    if (!title || !prLink || !description) {
+    if (!title || !description) {
       toast('All fields are required', 'error');
       return;
     }
     $('#create-submit').disabled = true;
     try {
-      const issue = await createCR({ title, prLink, description, env });
+      const issue = await createCR({ title, description, env });
       toast(`Created CR #${issue.number}`, 'success');
       closeModal();
       refresh();

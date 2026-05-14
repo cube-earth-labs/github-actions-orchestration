@@ -60,7 +60,7 @@ Live at: **https://cube-earth-labs.github.io/github-actions-orchestration/**
 
 A mock change-management system, served from `docs/index.html` via GitHub Pages. Backed by GitHub Issues (each CR is an issue labeled `change-request` + `status:*` + `env:*`). Lets you:
 
-- Create a change request (title, PR link, description, environment)
+- Create a change request (title, description, environment)
 - Approve / reject pending CRs
 - See history of deployed CRs
 
@@ -130,7 +130,7 @@ The serial path is `validate → CRQ → provision → configure`. The integrati
 ### Staging deploy (auto-creates a change request)
 
 1. Actions → **SaaS Onboarding (Demo)** → **Run workflow** → environment: `staging`
-2. Fill in: `change_title`, `pr_link`, `change_description` (these populate the new CR).
+2. Fill in: `change_title` and `change_description` (these populate the new CR; required for every environment).
 3. Pipeline immediately creates a CR (status:approved), then deploys. After smoke-tests, the CR is marked `status:deployed`.
 4. Open the webapp to see the CR appear in **Approved** → then move to **Deployed** after the run completes.
 
