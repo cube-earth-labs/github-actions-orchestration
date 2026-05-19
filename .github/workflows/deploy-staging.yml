@@ -1,8 +1,9 @@
 # =============================================================================
 # deploy-staging.yml
 # -----------------------------------------------------------------------------
-# Staging deployment. Allowed at any time -- no human approval. Auto-creates
-# a change-request issue in the repo (labeled change-request + status:approved
+# Staging deployment. Requires 1 human approval (via GitHub Actions
+# environment `change-approval`). After approval, the workflow auto-creates
+# a change-request issue in the repo (labels: change-request + status:approved
 # + env:staging) for audit/record. After smoke-tests, marks the CR deployed.
 # =============================================================================
 
@@ -52,9 +53,17 @@ jobs:
           [ -z "${{ inputs.change_description }}" ] && { echo "ERROR: change_description is required"; exit 1; } || true
           echo "OK"
 
+  approval:
+    name: Staging approval (human reviewer)
+    needs: validate-request
+    runs-on: ubuntu-latest
+    environment: change-approval
+    steps:
+      - run: echo "Staging change approved by reviewer. Proceeding."
+
   create-cr:
     name: Create change record
-    needs: validate-request
+    needs: approval
     runs-on: ubuntu-latest
     outputs:
       cr_id: ${{ steps.create.outputs.cr_id }}

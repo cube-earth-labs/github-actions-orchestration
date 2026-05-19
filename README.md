@@ -42,14 +42,14 @@ Each environment has its own workflow file with environment-specific gate logic.
 
 ### `deploy-sandbox.yml` — Deploy to Sandbox
 
-- **Gate:** GitHub Actions environment (`change-approval`) with one required reviewer. No change request is created.
-- **Flow:** validate → approval → terraform → ansible → splunk + dynatrace + cmdb (parallel) → smoke tests → notify
+- **Gate:** none. No human approval, no change request. Sandbox is fast/loose by design.
+- **Flow:** validate → terraform → ansible → splunk + dynatrace + cmdb (parallel) → smoke tests → notify
 - **Inputs:** `app_name`, `change_title`, `change_description`, `inject_failure`
 
 ### `deploy-staging.yml` — Deploy to Staging
 
-- **Gate:** none. Allowed any time. The workflow **auto-creates a change request issue** (labels: `change-request` + `status:approved` + `env:staging`) for audit/record.
-- **Flow:** validate → create-cr → terraform → ansible → integrations → smoke → mark-deployed → notify
+- **Gate:** GitHub Actions environment (`change-approval`) with one required reviewer. After approval, the workflow **auto-creates a change request issue** (labels: `change-request` + `status:approved` + `env:staging`) for audit/record.
+- **Flow:** validate → approval → create-cr → terraform → ansible → integrations → smoke → mark-deployed → notify
 - **Inputs:** `app_name`, `change_title` (becomes CR title), `change_description` (becomes CR body), `inject_failure`
 
 ### `deploy-production.yml` — Deploy to Production
@@ -83,8 +83,8 @@ github-actions-orchestration/
 │   └── index.html                # Change-management webapp (served by GitHub Pages from /docs)
 └── .github/
     └── workflows/
-        ├── deploy-sandbox.yml        # Deploy to Sandbox    (human-gate, no CR)
-        ├── deploy-staging.yml        # Deploy to Staging    (auto-creates a CR, deploys, marks deployed)
+        ├── deploy-sandbox.yml        # Deploy to Sandbox    (no gate, no CR)
+        ├── deploy-staging.yml        # Deploy to Staging    (human-gate, auto-creates a CR, deploys, marks deployed)
         └── deploy-production.yml     # Deploy to Production (verifies an approved CR, deploys, marks deployed)
 ```
 
@@ -122,22 +122,22 @@ The serial path is `validate → CRQ → provision → configure`. The integrati
 
 ### One-time setup
 
-1. In **Settings → Environments**, create the `change-approval` environment with a required reviewer — used as the gate in `deploy-sandbox.yml`.
+1. In **Settings → Environments**, create the `change-approval` environment with a required reviewer — used as the gate in `deploy-staging.yml`.
 2. Open the webapp at https://cube-earth-labs.github.io/github-actions-orchestration/ and paste your GitHub PAT in **Settings**. Labels (`change-request`, `status:*`, `env:*`) are already created in the repo.
 
-### Sandbox deploy (no change request)
+### Sandbox deploy (no approval, no change request)
 
 1. Actions → **Deploy to Sandbox** → **Run workflow**
 2. Fill in: `change_title` and `change_description`.
-3. The `approval` job pauses with a "Waiting" status. Click **Review deployments** → Approve.
-4. Pipeline proceeds to terraform → ansible → integrations → smoke → notify.
+3. Pipeline runs immediately: terraform → ansible → integrations → smoke → notify.
 
-### Staging deploy (auto-creates a change request)
+### Staging deploy (human approval, then auto-creates a change request)
 
 1. Actions → **Deploy to Staging** → **Run workflow**
 2. Fill in: `change_title` and `change_description` (these populate the new CR).
-3. Pipeline immediately creates a CR (status:approved), then deploys. After smoke-tests, the CR is marked `status:deployed`.
-4. Open the webapp to see the CR appear in **Approved** → then move to **Deployed** after the run completes.
+3. The `approval` job pauses with a "Waiting" status. Click **Review deployments** → Approve.
+4. After approval, the workflow creates a CR (status:approved), then deploys. After smoke-tests, the CR is marked `status:deployed`.
+5. Open the webapp to see the CR appear in **Approved** → then move to **Deployed** after the run completes.
 
 ### Production deploy (requires an approved CR from the webapp)
 

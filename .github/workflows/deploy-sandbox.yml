@@ -1,9 +1,8 @@
 # =============================================================================
 # deploy-sandbox.yml
 # -----------------------------------------------------------------------------
-# Sandbox deployment. Gated by a GitHub Actions environment with 1 human
-# reviewer. No change-management record is created -- sandbox is fast/loose
-# by design.
+# Sandbox deployment. NO human approval and NO change-management record --
+# sandbox is fast/loose by design. Validate inputs and go.
 # =============================================================================
 
 name: Deploy to Sandbox
@@ -51,17 +50,9 @@ jobs:
           [ -z "${{ inputs.change_description }}" ] && { echo "ERROR: change_description is required"; exit 1; } || true
           echo "OK"
 
-  approval:
-    name: Sandbox approval (human reviewer)
-    needs: validate-request
-    runs-on: ubuntu-latest
-    environment: change-approval
-    steps:
-      - run: echo "Sandbox change approved by reviewer. Proceeding."
-
   terraform-provision:
     name: Terraform provision
-    needs: approval
+    needs: validate-request
     runs-on: ubuntu-latest
     steps:
       - name: Inject failure (demo only — first attempt only)
