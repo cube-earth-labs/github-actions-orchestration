@@ -66,11 +66,10 @@ A mock change-management system, served from `docs/index.html` via GitHub Pages.
 github-actions-orchestration/
 ├── README.md                     # This file
 ├── docs/
-│   └── index.html                # Change-management webapp (served by deploy-pages.yml)
+│   └── index.html                # Change-management webapp (served by GitHub Pages from /docs)
 └── .github/
     └── workflows/
-        ├── execute-deployment.yml    # Flagship orchestration demo
-        └── deploy-pages.yml          # Publishes docs/ to GitHub Pages
+        └── execute-deployment.yml    # Flagship orchestration demo
 ```
 
 ## Run Tasks vs Actions vs AAP Kickoff — Decision Matrix
