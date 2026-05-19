@@ -1,0 +1,132 @@
+# =============================================================================
+# deploy-sandbox.yml
+# -----------------------------------------------------------------------------
+# Sandbox deployment. Gated by a GitHub Actions environment with 1 human
+# reviewer. No change-management record is created -- sandbox is fast/loose
+# by design.
+# =============================================================================
+
+name: Deploy to Sandbox
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: "Application being onboarded"
+        required: true
+        default: "demo-app"
+      change_title:
+        description: "Change title"
+        required: true
+      change_description:
+        description: "Change description"
+        required: true
+      inject_failure:
+        description: "Force a stage to fail on attempt 1 (for the Re-run demo)"
+        required: false
+        default: "none"
+        type: choice
+        options:
+          - none
+          - terraform-provision
+          - ansible-configure
+          - splunk-integrate
+
+permissions:
+  contents: read
+
+jobs:
+
+  validate-request:
+    name: Validate request payload
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "App:         ${{ inputs.app_name }}"
+          echo "Environment: sandbox"
+          echo "Title:       ${{ inputs.change_title }}"
+      - name: Verify required inputs
+        run: |
+          [ -z "${{ inputs.change_title }}" ]       && { echo "ERROR: change_title is required"; exit 1; } || true
+          [ -z "${{ inputs.change_description }}" ] && { echo "ERROR: change_description is required"; exit 1; } || true
+          echo "OK"
+
+  approval:
+    name: Sandbox approval (human reviewer)
+    needs: validate-request
+    runs-on: ubuntu-latest
+    environment: change-approval
+    steps:
+      - run: echo "Sandbox change approved by reviewer. Proceeding."
+
+  terraform-provision:
+    name: Terraform provision
+    needs: approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inject failure (demo only — first attempt only)
+        if: inputs.inject_failure == 'terraform-provision' && github.run_attempt == 1
+        run: |
+          echo "INJECTED FAILURE on attempt 1. Click 'Re-run failed jobs' — attempt 2 will skip and succeed."
+          exit 1
+      - run: echo "terraform init"
+      - run: echo "terraform plan -out=tfplan"
+      - run: echo "terraform apply tfplan"
+      - run: 'echo "outputs: instance_id=i-abc123 vpc_id=vpc-def456"'
+
+  ansible-configure:
+    name: Ansible configure
+    needs: terraform-provision
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inject failure (demo only — first attempt only)
+        if: inputs.inject_failure == 'ansible-configure' && github.run_attempt == 1
+        run: |
+          echo "INJECTED FAILURE on attempt 1."
+          exit 1
+      - run: echo "ansible-playbook -i inventory site.yml"
+      - run: 'echo "configured: baseline + hardening + agents installed"'
+
+  splunk-integrate:
+    name: Splunk forwarder
+    needs: ansible-configure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inject failure (demo only — first attempt only)
+        if: inputs.inject_failure == 'splunk-integrate' && github.run_attempt == 1
+        run: |
+          echo "INJECTED FAILURE on attempt 1."
+          exit 1
+      - run: echo "configured Splunk Universal Forwarder -> indexer cluster"
+      - run: echo "verified events arriving in index=app_${{ inputs.app_name }}"
+
+  dynatrace-integrate:
+    name: Dynatrace OneAgent
+    needs: ansible-configure
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "OneAgent installed and registered"
+      - run: 'echo "host group: sandbox-${{ inputs.app_name }}"'
+
+  cmdb-register:
+    name: CMDB / ITSM registration
+    needs: ansible-configure
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "POST /cmdb/ci -- registered new CI"
+
+  smoke-tests:
+    name: Smoke tests
+    needs: [splunk-integrate, dynatrace-integrate, cmdb-register]
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "health check: app responds on /healthz"'
+      - run: 'echo "log check:    Splunk shows app startup events"'
+      - run: 'echo "trace check:  Dynatrace shows service registered"'
+
+  notify:
+    name: Notify
+    needs: smoke-tests
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "slack: #onboarding -- ${{ inputs.app_name }} live in sandbox: ${{ inputs.change_title }}"'
